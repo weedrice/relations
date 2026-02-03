@@ -32,9 +32,12 @@ const initialState: MapState = {
     editorMode: 'select',
     connectingFromNodeId: null,
     stagePosition: { x: 0, y: 0 },
-    stageScale: 1,
+    stageScale: 1.4,
+    stageDimensions: null,
     isLoading: false,
     error: null,
+    focusedPanelId: null,
+    editingGroupId: null,
 };
 
 // ========================
@@ -432,6 +435,18 @@ export const useMapStore = create<MapStore>()(
                 // 스케일 범위 제한 (0.1 ~ 3.0)
                 const clampedScale = Math.max(0.1, Math.min(3.0, scale));
                 set({ stageScale: clampedScale });
+            },
+
+            setStageDimensions: (width: number, height: number) => {
+                set({ stageDimensions: { width, height } });
+            },
+
+            setFocusedPanel: (id: string | null) => {
+                set({ focusedPanelId: id });
+            },
+
+            setEditingGroupId: (id: string | null) => {
+                set({ editingGroupId: id });
             },
 
             // ========================

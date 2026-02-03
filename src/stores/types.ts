@@ -20,6 +20,7 @@ export interface MapMeta {
 export interface GlobalSettings {
     theme: 'light' | 'dark';
     showGrid: boolean;
+    showCanvasBoundary: boolean;
     gridSize: number;
     snapToGrid: boolean;
 }
@@ -34,6 +35,14 @@ export interface CharacterAttributes {
     age?: number;
     job?: string;
     description?: string;
+    /** 성별 */
+    gender?: string;
+    /** 키 (예: 180cm) */
+    height?: string;
+    /** 생일 (예: 1990-01-15) */
+    birthday?: string;
+    /** 몸무게 (예: 70kg) */
+    weight?: string;
     [key: string]: string | number | boolean | undefined;
 }
 
@@ -127,10 +136,18 @@ export interface MapState {
     // Viewport
     stagePosition: { x: number; y: number };
     stageScale: number;
+    /** 캔버스(Stage) 컨테이너 픽셀 크기. 미니맵 뷰포트 계산용. */
+    stageDimensions: { width: number; height: number } | null;
 
     // Loading State
     isLoading: boolean;
     error: string | null;
+
+    // Panel focus (z-order)
+    focusedPanelId: string | null;
+
+    // 그룹 패널에서 편집할 그룹 ID (캔버스에서 더블클릭 시 설정)
+    editingGroupId: string | null;
 }
 
 export interface MapActions {
@@ -178,6 +195,11 @@ export interface MapActions {
     // Viewport
     setStagePosition: (position: { x: number; y: number }) => void;
     setStageScale: (scale: number) => void;
+    setStageDimensions: (width: number, height: number) => void;
+
+    // Panel focus
+    setFocusedPanel: (id: string | null) => void;
+    setEditingGroupId: (id: string | null) => void;
 
     // Utils
     getCurrentYearData: () => TimelineYear | undefined;

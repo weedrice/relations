@@ -7,6 +7,9 @@
 import { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMapStore } from '../../stores/useMapStore';
+import { PANEL_Z_BASE, PANEL_Z_FOCUSED } from '../../constants/panelZIndex';
+
+const PANEL_ID = 'panel-timeline';
 
 // ========================
 // Component
@@ -16,7 +19,7 @@ export default function TimelineSlider() {
     const [newYear, setNewYear] = useState('');
 
     // Store
-    const { data, currentYear, setCurrentYear, addYear, removeYear, duplicateYear } = useMapStore();
+    const { data, currentYear, setCurrentYear, addYear, removeYear, duplicateYear, focusedPanelId, setFocusedPanel } = useMapStore();
     const years = data.timeline.map((t) => t.year).sort((a, b) => a - b);
 
     // ========================
@@ -59,95 +62,92 @@ export default function TimelineSlider() {
     // ========================
     return (
         <motion.div
-            initial={{ y: 100, opacity: 0 }}
+            initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-800/90 backdrop-blur-sm rounded-xl shadow-2xl border border-slate-700/50 overflow-hidden"
+            transition={{ type: 'spring', damping: 22, stiffness: 200 }}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 panel-base overflow-hidden"
+            style={{ zIndex: focusedPanelId === PANEL_ID ? PANEL_Z_FOCUSED : PANEL_Z_BASE }}
+            onMouseDown={() => setFocusedPanel(PANEL_ID)}
         >
-            {/* Main Timeline Bar */}
-            <div className="flex items-center gap-2 p-3">
-                {/* Year Buttons */}
-                <div className="flex items-center gap-1">
+            <div className="flex items-center gap-5 panel-element-margin">
+                <div className="flex items-center gap-4 flex-wrap panel-element-margin">
                     {years.map((year) => (
                         <motion.button
                             key={year}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
                             onClick={() => handleYearChange(year)}
                             onContextMenu={(e) => {
                                 e.preventDefault();
                                 handleRemoveYear(year);
                             }}
                             className={`
-                px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200
-                ${year === currentYear
-                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30'
-                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                                }
-              `}
+                                rounded-lg font-semibold text-sm transition-all duration-200
+                                ${year === currentYear
+                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                                    : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'}
+                            `}
                         >
                             {year}
                         </motion.button>
                     ))}
                 </div>
-
-                {/* Expand Button */}
                 <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-8 h-8 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 flex items-center justify-center"
+                    className="w-8 h-8 rounded-lg bg-slate-700/80 text-slate-400 hover:bg-slate-600 hover:text-white flex items-center justify-center transition-colors"
+                    aria-label={isExpanded ? '패널 접기' : '패널 펼치기'}
                 >
                     <svg
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2"
-                        className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                        className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
                     >
                         <path d="M19 9l-7 7-7-7" />
                     </svg>
                 </motion.button>
             </div>
 
-            {/* Expanded Panel */}
             <AnimatePresence>
                 {isExpanded && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="border-t border-slate-700"
+                        transition={{ duration: 0.2 }}
+                        className="border-t border-slate-700/60"
                     >
-                        <div className="p-3 flex items-center gap-2">
+                        <div className="flex items-center gap-4 panel-element-margin">
                             <input
                                 type="number"
                                 value={newYear}
                                 onChange={(e) => setNewYear(e.target.value)}
                                 placeholder="연도 입력..."
-                                className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 text-sm focus:outline-none focus:border-blue-500"
+                                className="input-base flex-1 text-sm"
                             />
                             <button
                                 onClick={handleAddYear}
-                                className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-medium transition-colors"
+                                className="rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
                             >
                                 추가
                             </button>
                             <button
                                 onClick={handleDuplicateYear}
-                                className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+                                className="btn-primary rounded-lg text-sm"
                             >
                                 복제
                             </button>
                         </div>
-
-                        {/* Current Year Info */}
-                        <div className="px-3 pb-3">
-                            <div className="text-xs text-slate-400">
-                                현재: <span className="text-white font-semibold">{currentYear}</span>
+                        <div className="panel-element-margin">
+                            <div className="text-xs text-slate-500 font-medium">
+                                현재 <span className="text-white">{currentYear}</span>
                                 {' · '}
-                                노드: <span className="text-white">{data.timeline.find((t) => t.year === currentYear)?.nodes.length || 0}</span>
+                                노드 <span className="text-white">{data.timeline.find((t) => t.year === currentYear)?.nodes.length || 0}</span>
                                 {' · '}
-                                관계: <span className="text-white">{data.timeline.find((t) => t.year === currentYear)?.edges.length || 0}</span>
+                                관계 <span className="text-white">{data.timeline.find((t) => t.year === currentYear)?.edges.length || 0}</span>
                             </div>
                         </div>
                     </motion.div>

@@ -83,9 +83,25 @@ export function useAutoLayout() {
                 // 레이아웃 계산
                 const layoutedGraph = await elk.layout(elkGraph);
 
-                // 캔버스 중앙으로 오프셋 계산
-                const offsetX = window.innerWidth / 2 - 200;
-                const offsetY = window.innerHeight / 2 - 100;
+                // 현재 화면(뷰포트) 중앙을 데이터 좌표로 계산
+                const { stagePosition, stageScale, stageDimensions } = useMapStore.getState();
+                const stageW = stageDimensions?.width ?? typeof window !== 'undefined' ? window.innerWidth : 800;
+                const stageH = stageDimensions?.height ?? typeof window !== 'undefined' ? window.innerHeight : 600;
+                const viewCenterX = (stageW / 2 - stagePosition.x) / stageScale;
+                const viewCenterY = (stageH / 2 - stagePosition.y) / stageScale;
+
+                // 레이아웃 결과의 바운딩 박스 중심
+                const layoutNodes = layoutedGraph.children ?? [];
+                const layoutMinX = Math.min(...layoutNodes.map((n) => n.x ?? 0));
+                const layoutMinY = Math.min(...layoutNodes.map((n) => n.y ?? 0));
+                const layoutMaxX = Math.max(...layoutNodes.map((n) => (n.x ?? 0) + (n.width ?? 100)));
+                const layoutMaxY = Math.max(...layoutNodes.map((n) => (n.y ?? 0) + (n.height ?? 100)));
+                const layoutCenterX = (layoutMinX + layoutMaxX) / 2;
+                const layoutCenterY = (layoutMinY + layoutMaxY) / 2;
+
+                // 화면 중앙에 레이아웃이 오도록 오프셋
+                const offsetX = viewCenterX - layoutCenterX;
+                const offsetY = viewCenterY - layoutCenterY;
 
                 // 노드 위치 업데이트
                 layoutedGraph.children?.forEach((elkNode) => {

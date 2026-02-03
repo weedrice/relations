@@ -4,11 +4,16 @@
  * react-easy-crop을 사용하여 이미지를 원형으로 크롭합니다.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area, Point } from 'react-easy-crop';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useDraggable } from '../../hooks/useDraggable';
+import { useMapStore } from '../../stores/useMapStore';
+import { PANEL_Z_BASE, PANEL_Z_FOCUSED } from '../../constants/panelZIndex';
 import { reprocessImage } from '../../utils/ImageProcessor';
+
+const MODAL_ID = 'modal-image-crop';
 
 interface ImageCropModalProps {
     isOpen: boolean;
@@ -103,6 +108,17 @@ export default function ImageCropModal({
         onClose();
     }, [onClose]);
 
+    const initialPos = useMemo(
+        () => ({
+            x: typeof window !== 'undefined' ? Math.max(16, window.innerWidth / 2 - 258) : 200,
+            y: typeof window !== 'undefined' ? Math.max(56, window.innerHeight / 2 - 240) : 200,
+        }),
+        [isOpen]
+    );
+    const { position, handleMouseDown } = useDraggable({ initialPosition: initialPos });
+    const focusedPanelId = useMapStore((s) => s.focusedPanelId);
+    const setFocusedPanel = useMapStore((s) => s.setFocusedPanel);
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -110,20 +126,30 @@ export default function ImageCropModal({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+                    className="fixed inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                    style={{ zIndex: focusedPanelId === MODAL_ID ? PANEL_Z_FOCUSED : PANEL_Z_BASE }}
                     onClick={handleCancel}
                 >
                     <motion.div
-                        initial={{ scale: 0.9, opacity: 0 }}
+                        initial={{ scale: 0.95, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.9, opacity: 0 }}
-                        className="bg-slate-800 rounded-2xl p-6 w-[500px] max-w-[90vw] shadow-2xl"
+                        exit={{ scale: 0.95, opacity: 0 }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                        className="fixed panel-base w-[520px] max-w-[90vw] cursor-grab active:cursor-grabbing select-none"
+                        style={{ left: position.x, top: position.y }}
                         onClick={(e) => e.stopPropagation()}
+                        onMouseDown={() => setFocusedPanel(MODAL_ID)}
                     >
-                        <h3 className="text-xl font-bold text-white mb-4">이미지 크롭</h3>
+                        <div
+                            className="border-b border-slate-700/60 bg-slate-800/40 rounded-t-xl"
+                            onMouseDown={handleMouseDown}
+                        >
+                            <h3 className="text-lg font-bold text-white panel-element-margin-all">이미지 크롭</h3>
+                            <p className="text-sm text-slate-500 mt-2.5 panel-element-margin">원형으로 잘라 프로필에 사용됩니다.</p>
+                        </div>
 
-                        {/* Cropper Area */}
-                        <div className="relative h-[300px] bg-slate-900 rounded-xl overflow-hidden">
+                        <div className="space-y-8 panel-body">
+                        <div className="relative h-[280px] bg-slate-900/80 rounded-xl overflow-hidden border border-slate-700/50 panel-element-margin">
                             <Cropper
                                 image={imageUrl}
                                 crop={crop}
@@ -137,9 +163,8 @@ export default function ImageCropModal({
                             />
                         </div>
 
-                        {/* Zoom Slider */}
-                        <div className="mt-4">
-                            <label className="text-sm text-slate-400 block mb-2">확대/축소</label>
+                        <div className="panel-element-margin">
+                            <label className="text-xs font-medium text-slate-500 block mb-4">확대/축소</label>
                             <input
                                 type="range"
                                 min={1}
@@ -147,25 +172,25 @@ export default function ImageCropModal({
                                 step={0.1}
                                 value={zoom}
                                 onChange={(e) => setZoom(Number(e.target.value))}
-                                className="w-full accent-blue-500"
+                                className="w-full h-2 rounded-full appearance-none bg-slate-700 accent-blue-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
                             />
                         </div>
 
-                        {/* Buttons */}
-                        <div className="flex gap-3 mt-6">
+                        <div className="flex gap-4 mt-2 panel-element-margin">
                             <button
                                 onClick={handleCancel}
-                                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                                className="flex-1 input-base font-medium text-white hover:bg-slate-600 transition-colors rounded-lg"
                             >
                                 취소
                             </button>
                             <button
                                 onClick={handleSave}
                                 disabled={isProcessing}
-                                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                                className="flex-1 btn-primary rounded-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
                             >
                                 {isProcessing ? '처리 중...' : '적용'}
                             </button>
+                        </div>
                         </div>
                     </motion.div>
                 </motion.div>

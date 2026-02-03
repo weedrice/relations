@@ -4,13 +4,17 @@
  * 우측에 선택된 노드/엣지의 속성을 편집하는 패널을 제공합니다.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMapStore } from '../../stores/useMapStore';
+import { useDraggable } from '../../hooks/useDraggable';
+import { PANEL_Z_BASE, PANEL_Z_FOCUSED } from '../../constants/panelZIndex';
 import type { NodeStatus, RelationshipType } from '../../stores/types';
 import { relationshipPresets } from '../../constants/relationshipPresets';
 import { statusStyles } from '../../constants/statusStyles';
 import ImageCropModal from '../modals/ImageCropModal';
+
+const PANEL_ID = 'panel-property';
 
 // ========================
 // Component
@@ -30,14 +34,21 @@ export default function PropertyPanel() {
         updateEdge,
         deleteNode,
         deleteEdge,
+        focusedPanelId,
+        setFocusedPanel,
     } = useMapStore();
 
     const yearData = data.timeline.find((t) => t.year === currentYear);
     const selectedNode = yearData?.nodes.find((n) => selectedNodeIds.includes(n.id));
     const selectedEdge = yearData?.edges.find((e) => selectedEdgeIds.includes(e.id));
 
-    // 선택된 항목이 없으면 렌더링하지 않음
     const hasSelection = selectedNode || selectedEdge;
+
+    const initialPos = useMemo(
+        () => ({ x: typeof window !== 'undefined' ? window.innerWidth - 336 : 400, y: 72 }),
+        [hasSelection]
+    );
+    const { position, handleMouseDown } = useDraggable({ initialPosition: initialPos });
 
     // ========================
     // Node Handlers
@@ -47,6 +58,17 @@ export default function PropertyPanel() {
             if (selectedNode) {
                 updateNode(selectedNode.id, {
                     attributes: { ...selectedNode.attributes, name: e.target.value },
+                });
+            }
+        },
+        [selectedNode, updateNode]
+    );
+
+    const handleAttributeChange = useCallback(
+        (key: string, value: string | number | undefined) => {
+            if (selectedNode) {
+                updateNode(selectedNode.id, {
+                    attributes: { ...selectedNode.attributes, [key]: value },
                 });
             }
         },
@@ -148,62 +170,133 @@ export default function PropertyPanel() {
         <AnimatePresence>
             {hasSelection && (
                 <motion.div
-                    initial={{ x: 100, opacity: 0 }}
+                    initial={{ x: 80, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: 100, opacity: 0 }}
-                    className="absolute right-4 top-4 w-72 bg-slate-800/90 backdrop-blur-sm rounded-xl shadow-2xl border border-slate-700/50 overflow-hidden"
+                    exit={{ x: 80, opacity: 0 }}
+                    transition={{ type: 'spring', damping: 22, stiffness: 200 }}
+                    className="fixed w-80 panel-base overflow-hidden cursor-grab active:cursor-grabbing select-none"
+                    style={{ left: position.x, top: position.y, zIndex: focusedPanelId === PANEL_ID ? PANEL_Z_FOCUSED : PANEL_Z_BASE }}
+                    onMouseDown={() => setFocusedPanel(PANEL_ID)}
                 >
-                    {/* Header */}
-                    <div className="px-4 py-3 bg-slate-700/50 border-b border-slate-600">
-                        <h3 className="font-semibold text-white">
+                    <div
+                        className="border-b border-slate-700/60 bg-slate-800/40 rounded-t-xl shrink-0"
+                        onMouseDown={handleMouseDown}
+                    >
+                        <h3 className="font-semibold text-white text-sm panel-element-margin-all">
                             {selectedNode ? '캐릭터 속성' : '관계 속성'}
                         </h3>
                     </div>
 
-                    {/* Node Properties */}
+                    <div className="panel-body">
                     {selectedNode && (
-                        <div className="p-4 space-y-4">
-                            {/* Profile Image */}
-                            <div className="flex flex-col items-center gap-2">
+                        <div className="space-y-12">
+                            <div className="flex flex-col items-center gap-2 panel-element-margin mb-4">
                                 <button
                                     onClick={handleImageClick}
-                                    className="w-20 h-20 rounded-full bg-slate-700 border-2 border-dashed border-slate-500 hover:border-blue-400 transition-colors overflow-hidden"
+                                    className="w-24 h-24 rounded-full bg-slate-700/80 border-2 border-dashed border-slate-600 hover:border-blue-500/70 transition-all overflow-hidden ring-2 ring-transparent hover:ring-blue-500/30"
                                 >
                                     {selectedNode.img ? (
                                         <img src={selectedNode.img} alt="" className="w-full h-full object-cover" />
                                     ) : (
-                                        <span className="text-slate-400 text-sm">이미지</span>
+                                        <span className="text-slate-500 text-sm font-medium">+ 이미지</span>
                                     )}
                                 </button>
-                                <span className="text-xs text-slate-400">클릭하여 이미지 업로드</span>
+                                <span className="text-xs text-slate-500">클릭하여 이미지 업로드</span>
                             </div>
 
-                            {/* Name */}
-                            <div>
-                                <label className="block text-sm text-slate-400 mb-1">이름</label>
+                            <div className="panel-element-margin mt-2">
+                                <label className="block text-xs font-medium text-slate-500 mb-5">이름</label>
                                 <input
                                     type="text"
                                     value={selectedNode.attributes.name || ''}
                                     onChange={handleNameChange}
-                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+                                    className="input-base w-full text-sm"
                                 />
                             </div>
 
-                            {/* Status */}
-                            <div>
-                                <label className="block text-sm text-slate-400 mb-2">상태</label>
-                                <div className="flex gap-2">
+                            <div className="grid grid-cols-2 gap-6 panel-element-margin">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-500 mb-5">직업</label>
+                                    <input
+                                        type="text"
+                                        value={(selectedNode.attributes.job as string) ?? ''}
+                                        onChange={(e) => handleAttributeChange('job', e.target.value || undefined)}
+                                        placeholder="예: 개발자"
+                                        className="input-base w-full text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-500 mb-5">나이</label>
+                                    <input
+                                        type="number"
+                                        value={(selectedNode.attributes.age as number) ?? ''}
+                                        onChange={(e) => handleAttributeChange('age', e.target.value ? Number(e.target.value) : undefined)}
+                                        placeholder="예: 30"
+                                        min={0}
+                                        className="input-base w-full text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-6 panel-element-margin">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-500 mb-5">성별</label>
+                                    <input
+                                        type="text"
+                                        value={(selectedNode.attributes.gender as string) ?? ''}
+                                        onChange={(e) => handleAttributeChange('gender', e.target.value || undefined)}
+                                        placeholder="예: 남/여"
+                                        className="input-base w-full text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-500 mb-5">키</label>
+                                    <input
+                                        type="text"
+                                        value={(selectedNode.attributes.height as string) ?? ''}
+                                        onChange={(e) => handleAttributeChange('height', e.target.value || undefined)}
+                                        placeholder="예: 180cm"
+                                        className="input-base w-full text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-6 panel-element-margin">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-500 mb-5">생일</label>
+                                    <input
+                                        type="text"
+                                        value={(selectedNode.attributes.birthday as string) ?? ''}
+                                        onChange={(e) => handleAttributeChange('birthday', e.target.value || undefined)}
+                                        placeholder="예: 1990-01-15"
+                                        className="input-base w-full text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-500 mb-5">몸무게</label>
+                                    <input
+                                        type="text"
+                                        value={(selectedNode.attributes.weight as string) ?? ''}
+                                        onChange={(e) => handleAttributeChange('weight', e.target.value || undefined)}
+                                        placeholder="예: 70kg"
+                                        className="input-base w-full text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="panel-element-margin">
+                                <label className="block text-xs font-medium text-slate-500 mb-5">상태</label>
+                                <div className="flex gap-5">
                                     {Object.values(statusStyles).map((style) => (
                                         <button
                                             key={style.status}
                                             onClick={() => handleStatusChange(style.status)}
                                             className={`
-                        flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all
-                        ${selectedNode.status === style.status
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                                                }
-                      `}
+                                                flex-1 rounded-lg text-sm font-medium py-3 px-4 transition-all
+                                                ${selectedNode.status === style.status
+                                                ? 'bg-blue-600 text-white shadow-sm'
+                                                : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'}
+                                            `}
                                         >
                                             {style.label}
                                         </button>
@@ -211,37 +304,35 @@ export default function PropertyPanel() {
                                 </div>
                             </div>
 
-                            {/* Delete Button */}
-                            <button
-                                onClick={handleDeleteNode}
-                                className="w-full py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm font-medium transition-colors"
-                            >
-                                삭제
-                            </button>
+                            <div className="mt-10 panel-element-margin">
+                                <button
+                                    onClick={handleDeleteNode}
+                                    className="w-full rounded-lg text-sm font-medium transition-colors bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20"
+                                >
+                                    삭제
+                                </button>
+                            </div>
                         </div>
                     )}
 
-                    {/* Edge Properties */}
                     {selectedEdge && (
-                        <div className="p-4 space-y-4">
-                            {/* Relationship Type */}
-                            <div>
-                                <label className="block text-sm text-slate-400 mb-2">관계 유형</label>
-                                <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-12">
+                            <div className="panel-element-margin">
+                                <label className="block text-xs font-medium text-slate-500 mb-1">관계 유형</label>
+                                <div className="pt-8 grid grid-cols-2 gap-3">
                                     {Object.values(relationshipPresets).map((preset) => (
                                         <button
                                             key={preset.type}
                                             onClick={() => handleEdgeTypeChange(preset.type)}
                                             className={`
-                        px-2 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2
-                        ${selectedEdge.type === preset.type
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                                                }
-                      `}
+                                                rounded-lg text-sm font-medium transition-all flex items-center gap-4 py-3 px-4
+                                                ${selectedEdge.type === preset.type
+                                                ? 'bg-blue-600 text-white shadow-sm'
+                                                : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'}
+                                            `}
                                         >
                                             <span
-                                                className="w-3 h-3 rounded-full"
+                                                className="w-4 h-4 rounded-full flex-shrink-0"
                                                 style={{ backgroundColor: preset.color }}
                                             />
                                             {preset.label}
@@ -250,40 +341,38 @@ export default function PropertyPanel() {
                                 </div>
                             </div>
 
-                            {/* Label */}
-                            <div>
-                                <label className="block text-sm text-slate-400 mb-1">라벨</label>
+                            <div className="panel-element-margin">
+                                <label className="block text-xs font-medium text-slate-500 mb-5">라벨</label>
                                 <input
                                     type="text"
                                     value={selectedEdge.label || ''}
                                     onChange={handleEdgeLabelChange}
                                     placeholder="관계 설명..."
-                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+                                    className="input-base w-full text-sm"
                                 />
                             </div>
 
-                            {/* Bidirectional */}
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex items-center gap-4 cursor-pointer text-sm text-slate-300 mt-4 panel-element-margin">
                                 <input
                                     type="checkbox"
                                     checked={selectedEdge.bidirectional}
                                     onChange={handleBidirectionalChange}
-                                    className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500"
+                                    className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-2 focus:ring-blue-500/50"
                                 />
-                                <span className="text-sm text-slate-300">양방향 관계</span>
+                                양방향 관계
                             </label>
 
-                            {/* Delete Button */}
-                            <button
-                                onClick={handleDeleteEdge}
-                                className="w-full py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm font-medium transition-colors"
-                            >
-                                삭제
-                            </button>
+                            <div className="panel-element-margin">
+                                <button
+                                    onClick={handleDeleteEdge}
+                                    className="w-full rounded-lg text-sm font-medium transition-colors bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20"
+                                >
+                                    삭제
+                                </button>
+                            </div>
                         </div>
                     )}
 
-                    {/* Hidden File Input */}
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -291,6 +380,7 @@ export default function PropertyPanel() {
                         onChange={handleImageChange}
                         className="hidden"
                     />
+                    </div>
                 </motion.div>
             )}
 

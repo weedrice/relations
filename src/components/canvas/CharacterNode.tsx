@@ -11,6 +11,7 @@ import type { KonvaEventObject } from 'konva/lib/Node';
 import type { CharacterNode as CharacterNodeType } from '../../stores/types';
 import { useMapStore } from '../../stores/useMapStore';
 import { getStatusStyle } from '../../constants/statusStyles';
+import { getContainingGroupId } from '../../utils/groupUtils';
 
 // ========================
 // Constants
@@ -38,6 +39,7 @@ export default function CharacterNode({ node }: CharacterNodeProps) {
         selectedNodeIds,
         selectNode,
         updateNode,
+        getCurrentYearData,
         data,
         editorMode,
         connectingFromNodeId,
@@ -83,15 +85,18 @@ export default function CharacterNode({ node }: CharacterNodeProps) {
             let x = e.target.x();
             let y = e.target.y();
 
-            // 그리드 스냅
             if (snapToGrid) {
                 x = Math.round(x / gridSize) * gridSize;
                 y = Math.round(y / gridSize) * gridSize;
             }
 
-            updateNode(node.id, { x, y });
+            const yearData = getCurrentYearData();
+            const groups = yearData?.groups ?? [];
+            const containingGroupId = getContainingGroupId({ x, y }, groups);
+
+            updateNode(node.id, { x, y, groupId: containingGroupId });
         },
-        [node.id, updateNode, snapToGrid, gridSize]
+        [node.id, updateNode, getCurrentYearData, snapToGrid, gridSize]
     );
 
     // ========================
@@ -214,7 +219,7 @@ export default function CharacterNode({ node }: CharacterNodeProps) {
                 <Text
                     text={node.attributes.name?.charAt(0) || '?'}
                     fontSize={36}
-                    fontFamily="Inter, sans-serif"
+                    fontFamily="'Plus Jakarta Sans', system-ui, sans-serif"
                     fontStyle="bold"
                     fill="#64748b"
                     align="center"
@@ -230,7 +235,7 @@ export default function CharacterNode({ node }: CharacterNodeProps) {
             <Text
                 text={node.attributes.name || 'Unknown'}
                 fontSize={14}
-                fontFamily="Inter, sans-serif"
+                fontFamily="'Plus Jakarta Sans', system-ui, sans-serif"
                 fontStyle="600"
                 fill="#f1f5f9"
                 align="center"

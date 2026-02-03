@@ -188,6 +188,7 @@ export function createDefaultMapData(title: string = 'Untitled Project'): MapDat
         globalSettings: {
             theme: 'dark',
             showGrid: true,
+            showCanvasBoundary: true,
             gridSize: 20,
             snapToGrid: false,
         },

@@ -7,15 +7,20 @@
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMapStore } from '../../stores/useMapStore';
+import { useDraggable } from '../../hooks/useDraggable';
+import { PANEL_Z_BASE, PANEL_Z_FOCUSED } from '../../constants/panelZIndex';
 import type { NodeStatus, RelationshipType } from '../../stores/types';
+
+const PANEL_ID = 'panel-search';
 
 interface SearchPanelProps {
     isOpen: boolean;
-    onClose: () => void;
+    initialPosition: { x: number; y: number };
+    onClose: (position?: { x: number; y: number }) => void;
 }
 
-export default function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
-    const { getCurrentYearData, selectNode, setStagePosition, setStageScale } = useMapStore();
+export default function SearchPanel({ isOpen, initialPosition, onClose }: SearchPanelProps) {
+    const { getCurrentYearData, selectNode, setStagePosition, setStageScale, focusedPanelId, setFocusedPanel } = useMapStore();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<NodeStatus | 'all'>('all');
@@ -93,20 +98,29 @@ export default function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
         missing: '실종',
     };
 
+    const { position, handleMouseDown } = useDraggable({ initialPosition });
+
     return (
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    initial={{ y: -100, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -100, opacity: 0 }}
-                    className="absolute top-4 left-1/2 -translate-x-1/2 w-96 max-w-[90vw] bg-slate-800/95 backdrop-blur-sm rounded-xl p-4 shadow-2xl border border-slate-700/50 z-50"
+                    initial={{ x: 80, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: 80, opacity: 0 }}
+                    transition={{ type: 'spring', damping: 22, stiffness: 200 }}
+                    className="fixed w-[440px] max-w-[90vw] panel-base cursor-grab active:cursor-grabbing select-none overflow-hidden"
+                    style={{ left: position.x, top: position.y, zIndex: focusedPanelId === PANEL_ID ? PANEL_Z_FOCUSED : PANEL_Z_BASE }}
+                    onMouseDown={() => setFocusedPanel(PANEL_ID)}
                 >
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold text-white">검색/필터</h3>
+                    <div
+                        className="flex justify-between items-center border-b border-slate-700/60 bg-slate-800/40 rounded-t-xl shrink-0"
+                        onMouseDown={handleMouseDown}
+                    >
+                        <h3 className="text-base font-bold text-white panel-element-margin-all">검색 / 필터</h3>
                         <button
-                            onClick={onClose}
-                            className="text-slate-400 hover:text-white transition-colors"
+                            onClick={() => onClose(position)}
+                            className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/80 transition-colors shrink-0 panel-element-margin-all"
+                            aria-label="닫기"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M18 6L6 18M6 6l12 12" />
@@ -114,18 +128,17 @@ export default function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
                         </button>
                     </div>
 
-                    {/* 검색 입력 */}
-                    <div className="mb-4">
-                        <div className="relative">
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="이름 또는 라벨 검색..."
-                                className="w-full px-4 py-2 pl-10 bg-slate-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                            <svg
-                                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    <div className="space-y-14 overflow-hidden panel-body">
+                    <div className="relative panel-element-margin">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="이름 또는 라벨 검색..."
+                            className="input-base w-full pr-12 text-sm"
+                        />
+                        <svg
+                            className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
                                 viewBox="0 0 24 24"
                                 fill="none"
                                 stroke="currentColor"
@@ -135,14 +148,12 @@ export default function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
                                 <path d="M21 21l-4.35-4.35" />
                             </svg>
                         </div>
-                    </div>
 
-                    {/* 필터 */}
-                    <div className="flex gap-2 mb-4">
+                    <div className="flex gap-8 flex-nowrap panel-element-margin">
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value as NodeStatus | 'all')}
-                            className="flex-1 px-3 py-2 bg-slate-700 text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="input-base flex-1 min-w-0 text-sm"
                         >
                             <option value="all">모든 상태</option>
                             {Object.entries(statusLabels).map(([value, label]) => (
@@ -152,7 +163,7 @@ export default function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
                         <select
                             value={relationshipFilter}
                             onChange={(e) => setRelationshipFilter(e.target.value as RelationshipType | 'all')}
-                            className="flex-1 px-3 py-2 bg-slate-700 text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="input-base flex-1 min-w-0 text-sm"
                         >
                             <option value="all">모든 관계</option>
                             {Object.entries(relationshipLabels).map(([value, label]) => (
@@ -161,25 +172,22 @@ export default function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
                         </select>
                     </div>
 
-                    {/* 결과 탭 */}
-                    <div className="text-sm text-slate-400 mb-2">
-                        캐릭터 {filteredNodes.length}명 / 관계 {filteredEdges.length}개
+                    <div className="text-xs font-medium text-slate-500 panel-element-margin">
+                        캐릭터 {filteredNodes.length}명 · 관계 {filteredEdges.length}개
                     </div>
 
-                    {/* 검색 결과 */}
-                    <div className="max-h-60 overflow-y-auto space-y-2">
+                    <div className="max-h-60 overflow-y-auto overflow-x-hidden space-y-5 panel-element-margin mt-6 min-w-0">
                         {filteredNodes.length === 0 && filteredEdges.length === 0 ? (
-                            <div className="text-sm text-slate-500 text-center py-4">
+                            <div className="text-sm text-slate-500 text-center panel-element-margin">
                                 검색 결과가 없습니다
                             </div>
                         ) : (
                             <>
-                                {/* 노드 결과 */}
                                 {filteredNodes.map((node) => (
                                     <button
                                         key={node.id}
                                         onClick={() => handleSelectNode(node.id, node.x, node.y)}
-                                        className="w-full flex items-center gap-3 p-2 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg transition-colors text-left"
+                                        className="w-full flex items-center gap-4 rounded-xl bg-slate-700/40 hover:bg-slate-600/50 border border-transparent hover:border-slate-600/50 transition-all text-left panel-element-margin"
                                     >
                                         {node.img ? (
                                             <img
@@ -207,12 +215,12 @@ export default function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
                                     return (
                                         <div
                                             key={edge.id}
-                                            className="flex items-center gap-2 p-2 bg-slate-700/30 rounded-lg"
+                                            className="flex items-center gap-4 rounded-xl bg-slate-700/30 border border-slate-600/30 panel-element-margin"
                                         >
                                             <span className="text-white text-sm truncate">
                                                 {sourceNode?.attributes.name}
                                             </span>
-                                            <span className="text-slate-400 text-xs px-2 py-0.5 bg-slate-600 rounded">
+                                            <span className="text-slate-400 text-xs bg-slate-600 rounded">
                                                 {edge.label || relationshipLabels[edge.type]}
                                             </span>
                                             <span className="text-white text-sm truncate">
@@ -223,6 +231,7 @@ export default function SearchPanel({ isOpen, onClose }: SearchPanelProps) {
                                 })}
                             </>
                         )}
+                    </div>
                     </div>
                 </motion.div>
             )}

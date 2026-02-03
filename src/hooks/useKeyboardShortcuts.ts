@@ -73,14 +73,30 @@ export function useKeyboardShortcuts() {
         }
     }, [editorMode, setEditorMode, cancelConnecting]);
 
+    // 그룹 모드 토글
+    const handleToggleGroupMode = useCallback(() => {
+        if (editorMode === 'group') {
+            setEditorMode('select');
+        } else {
+            setEditorMode('group');
+        }
+    }, [editorMode, setEditorMode]);
+
     // ESC - 선택 해제 또는 모드 취소
     const handleEscape = useCallback(() => {
         if (editorMode === 'connect') {
             cancelConnecting();
+        } else if (editorMode === 'group') {
+            setEditorMode('select');
         } else {
             clearSelection();
         }
-    }, [editorMode, cancelConnecting, clearSelection]);
+    }, [editorMode, cancelConnecting, clearSelection, setEditorMode]);
+
+    // 그룹 패널 열기 (Ctrl+G)
+    const handleOpenGroupPanel = useCallback(() => {
+        window.dispatchEvent(new CustomEvent('open-group-panel'));
+    }, []);
 
     // 단축키 목록
     const shortcuts: ShortcutConfig[] = [
@@ -91,7 +107,9 @@ export function useKeyboardShortcuts() {
         { key: 'y', ctrl: true, action: handleRedo, description: '다시 실행' },
         { key: 'n', ctrl: true, action: handleNew, description: '새 프로젝트' },
         { key: 's', ctrl: true, action: handleSave, description: '저장' },
+        { key: 'g', ctrl: true, action: handleOpenGroupPanel, description: '그룹 패널 열기' },
         { key: 'e', action: handleToggleConnectMode, description: '연결 모드 토글' },
+        { key: 'g', shift: true, action: handleToggleGroupMode, description: '그룹 모드 토글' },
         { key: 'Escape', action: handleEscape, description: '선택 해제 / 모드 취소' },
     ];
 
@@ -134,6 +152,8 @@ export const SHORTCUT_LIST = [
     { keys: 'Ctrl + Shift + Z / Ctrl + Y', description: '다시 실행 (Redo)' },
     { keys: 'Ctrl + N', description: '새 프로젝트' },
     { keys: 'Ctrl + S', description: '저장' },
+    { keys: 'Ctrl + G', description: '그룹 패널 열기' },
     { keys: 'E', description: '연결 모드 토글' },
+    { keys: 'Shift + G', description: '그룹 모드 토글' },
     { keys: 'Escape', description: '선택 해제 / 모드 취소' },
 ];

@@ -4,30 +4,26 @@
  * 그룹 생성, 편집, 삭제 기능을 제공합니다.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMapStore } from '../../stores/useMapStore';
+import { useDraggable } from '../../hooks/useDraggable';
+import { getNodesInGroup } from '../../utils/groupUtils';
+import { PANEL_Z_BASE, PANEL_Z_FOCUSED } from '../../constants/panelZIndex';
+import { GROUP_COLORS } from '../../constants/groupColors';
+import GroupFormFields from './GroupFormFields';
 import type { Group } from '../../stores/types';
 
-// 기본 그룹 색상 팔레트
-const GROUP_COLORS = [
-    '#ef4444', // red
-    '#f97316', // orange
-    '#eab308', // yellow
-    '#22c55e', // green
-    '#14b8a6', // teal
-    '#3b82f6', // blue
-    '#8b5cf6', // violet
-    '#ec4899', // pink
-];
+const PANEL_ID = 'panel-group';
 
 interface GroupPanelProps {
     isOpen: boolean;
-    onClose: () => void;
+    initialPosition: { x: number; y: number };
+    onClose: (position?: { x: number; y: number }) => void;
 }
 
-export default function GroupPanel({ isOpen, onClose }: GroupPanelProps) {
-    const { getCurrentYearData, addGroup, updateGroup, deleteGroup, selectedNodeIds, updateNode } = useMapStore();
+export default function GroupPanel({ isOpen, initialPosition, onClose }: GroupPanelProps) {
+    const { getCurrentYearData, updateGroup, deleteGroup, selectedNodeIds, updateNode, focusedPanelId, setFocusedPanel, editingGroupId, setEditingGroupId } = useMapStore();
 
     const [newGroupName, setNewGroupName] = useState('');
     const [selectedColor, setSelectedColor] = useState(GROUP_COLORS[0]);
@@ -36,27 +32,18 @@ export default function GroupPanel({ isOpen, onClose }: GroupPanelProps) {
     const yearData = getCurrentYearData();
     const groups = yearData?.groups || [];
 
-    // 새 그룹 생성
-    const handleCreateGroup = useCallback(() => {
-        if (!newGroupName.trim()) return;
-
-        const groupId = addGroup({
-            name: newGroupName,
-            color: selectedColor,
-            x: window.innerWidth / 2 - 100,
-            y: window.innerHeight / 2 - 50,
-            width: 200,
-            height: 150,
-        });
-
-        // 선택된 노드들을 그룹에 추가
-        selectedNodeIds.forEach((nodeId) => {
-            updateNode(nodeId, { groupId });
-        });
-
-        setNewGroupName('');
-        setSelectedColor(GROUP_COLORS[0]);
-    }, [newGroupName, selectedColor, addGroup, selectedNodeIds, updateNode]);
+    // 캔버스에서 그룹 더블클릭으로 열었을 때 해당 그룹 편집 상태로
+    useEffect(() => {
+        if (!isOpen || !editingGroupId) return;
+        const yearData = getCurrentYearData();
+        const group = yearData?.groups?.find((g) => g.id === editingGroupId);
+        if (group) {
+            setEditingGroup(group);
+            setNewGroupName(group.name);
+            setSelectedColor(group.color);
+        }
+        setEditingGroupId(null);
+    }, [isOpen, editingGroupId, getCurrentYearData, setEditingGroupId]);
 
     // 그룹 삭제
     const handleDeleteGroup = useCallback((groupId: string) => {
@@ -105,27 +92,35 @@ export default function GroupPanel({ isOpen, onClose }: GroupPanelProps) {
         });
     }, [selectedNodeIds, updateNode]);
 
-    // 선택된 노드들의 그룹 해제
     const handleRemoveFromGroup = useCallback(() => {
         selectedNodeIds.forEach((nodeId) => {
             updateNode(nodeId, { groupId: undefined });
         });
     }, [selectedNodeIds, updateNode]);
 
+    const { position, handleMouseDown } = useDraggable({ initialPosition });
+
     return (
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    initial={{ x: 300, opacity: 0 }}
+                    initial={{ x: 80, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: 300, opacity: 0 }}
-                    className="absolute right-4 top-4 w-72 bg-slate-800/95 backdrop-blur-sm rounded-xl p-4 shadow-2xl border border-slate-700/50"
+                    exit={{ x: 80, opacity: 0 }}
+                    transition={{ type: 'spring', damping: 22, stiffness: 200 }}
+                    className="fixed w-[330px] panel-base cursor-grab active:cursor-grabbing select-none overflow-hidden box-border"
+                    style={{ left: position.x, top: position.y, zIndex: focusedPanelId === PANEL_ID ? PANEL_Z_FOCUSED : PANEL_Z_BASE, padding: '12px' }}
+                    onMouseDown={() => setFocusedPanel(PANEL_ID)}
                 >
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold text-white">그룹 관리</h3>
+                    <div
+                        className="flex justify-between items-center border-b border-slate-700/60 bg-slate-800/40 rounded-t-xl shrink-0"
+                        onMouseDown={handleMouseDown}
+                    >
+                        <h3 className="text-base font-bold text-white">그룹 관리</h3>
                         <button
-                            onClick={onClose}
-                            className="text-slate-400 hover:text-white transition-colors"
+                            onClick={() => onClose(position)}
+                            className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/80 transition-colors shrink-0"
+                            aria-label="닫기"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M18 6L6 18M6 6l12 12" />
@@ -133,89 +128,58 @@ export default function GroupPanel({ isOpen, onClose }: GroupPanelProps) {
                         </button>
                     </div>
 
-                    {/* 새 그룹 생성 */}
-                    <div className="mb-4">
-                        <label className="text-sm text-slate-400 block mb-2">
-                            {editingGroup ? '그룹 편집' : '새 그룹 생성'}
-                        </label>
-                        <input
-                            type="text"
-                            value={newGroupName}
-                            onChange={(e) => setNewGroupName(e.target.value)}
-                            placeholder="그룹 이름"
-                            className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <div className="space-y-8" style={{ marginTop: '8px' }}>
+                    {/* 그룹 편집 시에만 표시 */}
+                    {editingGroup && (
+                        <GroupFormFields
+                            className="mb-6"
+                            nameLabel="그룹 편집"
+                            nameValue={newGroupName}
+                            onNameChange={setNewGroupName}
+                            namePlaceholder="그룹 이름"
+                            color={selectedColor}
+                            onColorChange={setSelectedColor}
+                            onCancel={handleCancelEdit}
+                            onConfirm={handleSaveEdit}
+                            confirmLabel="저장"
+                            nameInputClassName="input-base w-full text-sm mb-4"
                         />
+                    )}
 
-                        {/* 색상 선택 */}
-                        <div className="flex gap-2 mb-3 flex-wrap">
-                            {GROUP_COLORS.map((color) => (
-                                <button
-                                    key={color}
-                                    onClick={() => setSelectedColor(color)}
-                                    className={`w-6 h-6 rounded-full transition-transform ${selectedColor === color ? 'scale-125 ring-2 ring-white' : 'hover:scale-110'
-                                        }`}
-                                    style={{ backgroundColor: color }}
-                                />
-                            ))}
-                        </div>
-
-                        {editingGroup ? (
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={handleCancelEdit}
-                                    className="flex-1 px-3 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-sm transition-colors"
-                                >
-                                    취소
-                                </button>
-                                <button
-                                    onClick={handleSaveEdit}
-                                    className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition-colors"
-                                >
-                                    저장
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={handleCreateGroup}
-                                disabled={!newGroupName.trim()}
-                                className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
-                            >
-                                그룹 생성
-                            </button>
-                        )}
-                    </div>
-
-                    {/* 선택된 노드 액션 */}
                     {selectedNodeIds.length > 0 && (
-                        <div className="mb-4 p-3 bg-slate-700/50 rounded-lg">
-                            <div className="text-sm text-slate-400 mb-2">
+                        <div className="rounded-xl bg-slate-700/40 border border-slate-600/50">
+                            <div className="text-xs font-medium text-slate-500 mb-5">
                                 선택된 캐릭터: {selectedNodeIds.length}명
                             </div>
                             <button
                                 onClick={handleRemoveFromGroup}
-                                className="w-full px-3 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-sm transition-colors"
+                                className="w-full bg-slate-600/80 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors mt-1"
                             >
                                 그룹에서 제외
                             </button>
                         </div>
                     )}
 
-                    {/* 그룹 목록 */}
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                    <div className="min-w-0" style={{ marginTop: '10px', paddingLeft: '12px', paddingRight: '12px' }}>
+                        <span className="text-xs font-medium text-slate-500 block" style={{ marginBottom: '5px' }}>그룹 목록</span>
+                        <div className="space-y-3 max-h-60 overflow-y-auto overflow-x-hidden">
                         {groups.length === 0 ? (
                             <div className="text-sm text-slate-500 text-center py-4">
                                 아직 그룹이 없습니다
                             </div>
                         ) : (
                             groups.map((group) => {
-                                const memberCount = yearData?.nodes.filter((n) => n.groupId === group.id).length || 0;
+                                const memberCount = yearData
+                                    ? getNodesInGroup(group, yearData.nodes).length
+                                    : 0;
 
                                 return (
                                     <div
                                         key={group.id}
-                                        className="flex items-center justify-between p-2 bg-slate-700/50 rounded-lg"
+                                        className="flex items-center justify-between rounded-xl bg-slate-700/40 border border-slate-600/40 gap-4"
+                                    style={{ paddingLeft: '8px', paddingRight: '8px' }}
                                     >
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
                                             <div
                                                 className="w-4 h-4 rounded-full flex-shrink-0"
                                                 style={{ backgroundColor: group.color }}
@@ -225,11 +189,11 @@ export default function GroupPanel({ isOpen, onClose }: GroupPanelProps) {
                                                 <div className="text-xs text-slate-400">{memberCount}명</div>
                                             </div>
                                         </div>
-                                        <div className="flex gap-1 flex-shrink-0">
+                                        <div className="flex gap-2.5 flex-shrink-0">
                                             {selectedNodeIds.length > 0 && (
                                                 <button
                                                     onClick={() => handleMoveToGroup(group.id)}
-                                                    className="p-1.5 text-slate-400 hover:text-green-400 hover:bg-slate-600 rounded transition-colors"
+                                                    className="text-slate-400 hover:text-green-400 hover:bg-slate-600 rounded transition-colors"
                                                     title="선택한 캐릭터를 이 그룹으로 이동"
                                                 >
                                                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -239,7 +203,7 @@ export default function GroupPanel({ isOpen, onClose }: GroupPanelProps) {
                                             )}
                                             <button
                                                 onClick={() => handleStartEdit(group)}
-                                                className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-600 rounded transition-colors"
+                                                className="text-slate-400 hover:text-blue-400 hover:bg-slate-600 rounded transition-colors"
                                                 title="편집"
                                             >
                                                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -249,7 +213,7 @@ export default function GroupPanel({ isOpen, onClose }: GroupPanelProps) {
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteGroup(group.id)}
-                                                className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-600 rounded transition-colors"
+                                                className="text-slate-400 hover:text-red-400 hover:bg-slate-600 rounded transition-colors"
                                                 title="삭제"
                                             >
                                                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -262,6 +226,8 @@ export default function GroupPanel({ isOpen, onClose }: GroupPanelProps) {
                                 );
                             })
                         )}
+                        </div>
+                    </div>
                     </div>
                 </motion.div>
             )}

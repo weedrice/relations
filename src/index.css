@@ -1,15 +1,30 @@
-@import "tailwindcss";
+/* Tailwind v4: 소스 경로 명시 (스캔 대상 = 이 파일 기준 현재 디렉터리 = src) */
+@import "tailwindcss" source(".");
 
 /* ========================
- * Custom Font
- * ======================== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-/* ========================
- * Base Styles
+ * Design Tokens (font loaded via index.html)
  * ======================== */
 :root {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --bg-base: #0f172a;
+  --bg-panel: rgba(30, 41, 59, 0.92);
+  --bg-input: #334155;
+  --border-subtle: rgba(71, 85, 105, 0.5);
+  --border-strong: rgba(100, 116, 139, 0.6);
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-muted: rgba(59, 130, 246, 0.2);
+  --radius-panel: 12px;
+  --radius-button: 8px;
+  --radius-input: 8px;
+  --shadow-panel: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+  /* 패널 내 섹션/요소 간 여백 (마진) */
+  --spacing-section: 3.5rem;   /* 56px - 블록 간 */
+  --spacing-field: 1.5rem;    /* 24px - 필드/라벨 간 */
+  font-family: var(--font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -29,8 +44,8 @@ html, body, #root {
 }
 
 body {
-  background-color: #0f172a;
-  color: #f1f5f9;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
 }
 
 /* ========================
@@ -43,6 +58,7 @@ body {
 
 ::-webkit-scrollbar-track {
   background: #1e293b;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -58,12 +74,12 @@ body {
  * Selection Styles
  * ======================== */
 ::selection {
-  background-color: #3b82f6;
+  background-color: var(--accent);
   color: white;
 }
 
 /* ========================
- * Konva Canvas Cursor Fix
+ * Konva Canvas Cursor
  * ======================== */
 .konvajs-content {
   cursor: grab;
@@ -71,6 +87,89 @@ body {
 
 .konvajs-content:active {
   cursor: grabbing;
+}
+
+/* ========================
+ * Panel Base (shared)
+ * ======================== */
+.panel-base {
+  background: var(--bg-panel);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+.input-base {
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-input);
+  color: var(--text-primary);
+  padding: 0.75rem 1rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input-base::placeholder {
+  color: var(--text-muted);
+}
+
+.input-base:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  transition: filter 0.15s, transform 0.1s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* 패널 제목 영역과 본문 사이 간격 */
+.panel-body {
+  margin-top: 1.25rem; /* 20px */
+}
+
+/* 패널 공통: 요소 간 여백 (검색/그룹/속성 패널 모두 적용)
+ * 주의: margin-bottom을 넣지 않음 → Tailwind mb-* 유틸이 덮어쓰이지 않도록 함 */
+.panel-element-margin {
+  margin-left: 8px;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+/* Tailwind mb-*와 함께 쓸 때: 좌우만 8px, 하단은 Tailwind로 제어 */
+.panel-element-margin-x {
+  margin-left: 8px;
+  margin-right: 8px;
+}
+.panel-element-margin-all {
+  margin: 8px;
+}
+
+/* 툴 패널: 좌우·상하 여백 (전역 CSS로 확실 적용) */
+.tool-panel-padding {
+  padding: 16px 12px;
+}
+
+/* 헤더: 좌우 여백 (전역 CSS로 확실 적용) */
+.header-padding {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+/* kbd/버튼 등 최소 터치 영역 (패딩 제거 후 공통 적용) */
+kbd {
+  padding: 0.35rem 0.5rem;
 }
 
 /* ========================
@@ -106,9 +205,9 @@ body {
  * Utility Classes
  * ======================== */
 .glass {
-  background: rgba(30, 41, 59, 0.8);
+  background: var(--bg-panel);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(71, 85, 105, 0.5);
+  border: 1px solid var(--border-subtle);
 }
 
 .gradient-border {
@@ -131,7 +230,7 @@ body {
  * Focus Styles
  * ======================== */
 :focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -153,6 +252,7 @@ body {
   border: 1px solid #334155;
   border-radius: 6px;
   font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
   opacity: 0;
   visibility: hidden;

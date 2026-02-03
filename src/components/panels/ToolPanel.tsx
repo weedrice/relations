@@ -8,6 +8,9 @@ import { useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useMapStore, useTemporalStore } from '../../stores/useMapStore';
 import { useAutoLayout } from '../../hooks/useAutoLayout';
+import { PANEL_Z_BASE, PANEL_Z_FOCUSED } from '../../constants/panelZIndex';
+
+const PANEL_ID = 'panel-tool';
 
 // ========================
 // Icons
@@ -85,6 +88,12 @@ const icons = {
             <path d="M6.5 10v2M17.5 10v2M12 10v4" />
         </svg>
     ),
+    addGroup: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="4 2" />
+            <path d="M8 8h8M8 12h8M8 16h4" />
+        </svg>
+    ),
     exportPdf: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" />
@@ -97,6 +106,11 @@ const icons = {
             <rect x="3" y="3" width="18" height="18" rx="2" />
             <circle cx="8.5" cy="8.5" r="1.5" />
             <path d="M21 15l-5-5L5 21" />
+        </svg>
+    ),
+    canvasBoundary: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="2" y="2" width="20" height="20" rx="1" strokeDasharray="3 2" />
         </svg>
     ),
 };
@@ -115,19 +129,19 @@ interface ToolButtonProps {
 function ToolButton({ icon, label, onClick, disabled, active }: ToolButtonProps) {
     return (
         <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={!disabled ? { scale: 1.05 } : undefined}
+            whileTap={!disabled ? { scale: 0.95 } : undefined}
             onClick={onClick}
             disabled={disabled}
             className={`
         w-10 h-10 rounded-lg flex items-center justify-center
-        transition-colors duration-150
-        ${active ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'}
+        transition-all duration-200
+        ${active ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600 hover:text-white'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
       `}
             title={label}
         >
-            <span className="w-5 h-5">{icon}</span>
+            <span className="w-5 h-5 [&>svg]:w-full [&>svg]:h-full">{icon}</span>
         </motion.button>
     );
 }
@@ -136,7 +150,11 @@ function ToolButton({ icon, label, onClick, disabled, active }: ToolButtonProps)
 // Divider Component
 // ========================
 function Divider() {
-    return <div className="h-px bg-slate-600 my-2" />;
+    return <div className="h-px bg-slate-600/70 my-2 mx-0" aria-hidden />;
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+    return <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mt-2 first:mt-0 text-center">{children}</div>;
 }
 
 // ========================
@@ -147,10 +165,12 @@ export default function ToolPanel() {
 
     // Store
     const {
+        data,
         newProject,
         saveProject,
         loadProject,
         addNode,
+        stagePosition,
         stageScale,
         setStageScale,
         setStagePosition,
@@ -158,7 +178,19 @@ export default function ToolPanel() {
         editorMode,
         setEditorMode,
         cancelConnecting,
+        updateSettings,
+        focusedPanelId,
+        setFocusedPanel,
     } = useMapStore();
+
+    const handleToggleGroupMode = useCallback(() => {
+        if (editorMode === 'group') {
+            setEditorMode('select');
+        } else {
+            cancelConnecting();
+            setEditorMode('group');
+        }
+    }, [editorMode, setEditorMode, cancelConnecting]);
 
     const temporal = useTemporalStore();
 
@@ -206,16 +238,21 @@ export default function ToolPanel() {
     );
 
     const handleAddNode = useCallback(() => {
+        // 현재 보이는 뷰포트의 가운데(스테이지 좌표)에 생성
+        const screenCenterX = window.innerWidth / 2;
+        const screenCenterY = window.innerHeight / 2;
+        const stageX = (screenCenterX - stagePosition.x) / stageScale;
+        const stageY = (screenCenterY - stagePosition.y) / stageScale;
         const id = addNode({
-            x: window.innerWidth / 2,
-            y: window.innerHeight / 2,
+            x: stageX,
+            y: stageY,
             status: 'alive',
             attributes: {
                 name: `Character ${Math.floor(Math.random() * 1000)}`,
             },
         });
         console.log('Added node:', id);
-    }, [addNode, currentYear]);
+    }, [addNode, currentYear, stagePosition, stageScale]);
 
     const handleToggleConnectMode = useCallback(() => {
         if (editorMode === 'connect') {
@@ -247,6 +284,12 @@ export default function ToolPanel() {
         setStagePosition({ x: 0, y: 0 });
     }, [setStageScale, setStagePosition]);
 
+    const handleToggleCanvasBoundary = useCallback(() => {
+        updateSettings({
+            showCanvasBoundary: !(data.globalSettings.showCanvasBoundary ?? true),
+        });
+    }, [data.globalSettings.showCanvasBoundary, updateSettings]);
+
     const handleUndo = useCallback(() => {
         temporal.getState().undo();
     }, [temporal]);
@@ -260,19 +303,21 @@ export default function ToolPanel() {
     // ========================
     return (
         <motion.div
-            initial={{ x: -100, opacity: 0 }}
+            initial={{ x: -80, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-slate-800/90 backdrop-blur-sm rounded-xl p-2 shadow-2xl border border-slate-700/50"
+            transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+            className="absolute left-6 top-1/2 -translate-y-1/2 panel-base rounded-lg tool-panel-padding"
+            style={{ zIndex: focusedPanelId === PANEL_ID ? PANEL_Z_FOCUSED : PANEL_Z_BASE }}
+            onMouseDown={() => setFocusedPanel(PANEL_ID)}
         >
-            <div className="flex flex-col gap-1">
-                {/* File Operations */}
+            <div className="flex flex-col gap-2">
+                <SectionLabel>파일</SectionLabel>
                 <ToolButton icon={icons.new} label="새 프로젝트" onClick={handleNew} />
                 <ToolButton icon={icons.open} label="열기" onClick={handleOpenClick} />
                 <ToolButton icon={icons.save} label="저장" onClick={handleSave} />
 
                 <Divider />
-
-                {/* Edit Tools */}
+                <SectionLabel>편집</SectionLabel>
                 <ToolButton icon={icons.addNode} label="캐릭터 추가" onClick={handleAddNode} />
                 <ToolButton
                     icon={icons.addEdge}
@@ -280,37 +325,32 @@ export default function ToolPanel() {
                     onClick={handleToggleConnectMode}
                     active={editorMode === 'connect'}
                 />
+                <ToolButton
+                    icon={icons.addGroup}
+                    label="그룹 생성 (드래그하여 영역 지정)"
+                    onClick={handleToggleGroupMode}
+                    active={editorMode === 'group'}
+                />
                 <ToolButton icon={icons.autoLayout} label="자동 배치" onClick={handleAutoLayout} />
 
                 <Divider />
-
-                {/* Undo/Redo */}
+                <SectionLabel>실행</SectionLabel>
                 <ToolButton icon={icons.undo} label="실행 취소" onClick={handleUndo} />
                 <ToolButton icon={icons.redo} label="다시 실행" onClick={handleRedo} />
 
                 <Divider />
-
-                {/* Zoom */}
+                <SectionLabel>뷰</SectionLabel>
                 <ToolButton icon={icons.zoomIn} label="확대" onClick={handleZoomIn} />
                 <ToolButton icon={icons.zoomOut} label="축소" onClick={handleZoomOut} />
                 <ToolButton icon={icons.fitView} label="뷰 맞추기" onClick={handleFitView} />
-
-                <Divider />
-
-                {/* Export */}
                 <ToolButton
-                    icon={icons.exportPdf}
-                    label="PDF 내보내기 (준비 중)"
-                    onClick={() => alert('PDF 내보내기는 헤더 메뉴에서 사용할 수 있습니다.')}
-                />
-                <ToolButton
-                    icon={icons.exportImage}
-                    label="이미지 내보내기 (준비 중)"
-                    onClick={() => alert('이미지 내보내기는 헤더 메뉴에서 사용할 수 있습니다.')}
+                    icon={icons.canvasBoundary}
+                    label="캔버스 경계 표시"
+                    onClick={handleToggleCanvasBoundary}
+                    active={data.globalSettings.showCanvasBoundary ?? true}
                 />
             </div>
 
-            {/* Hidden File Input */}
             <input
                 ref={fileInputRef}
                 type="file"
